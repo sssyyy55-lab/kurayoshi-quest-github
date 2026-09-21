@@ -1,0 +1,579 @@
+<title>倉吉クエスト</title>
+<link rel="preconnect" href="https://tile.openstreetmap.org">
+<style>
+  :root { color-scheme: dark; --ink:#f6fbff; --muted:#a9bac6; --panel:rgba(11,23,32,.92); --accent:#ff6b35; --accent2:#ffb343; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", sans-serif; background:#0b1720; color:var(--ink); overflow: hidden; height: 100%; }
+  html { height: 100%; }
+  #map { position: fixed; inset: 0; z-index: 0; background:#dce7eb; }
+  .topbar { position:fixed; z-index:500; top:calc(14px + env(safe-area-inset-top, 0px)); left:14px; right:14px; display:flex; align-items:center; justify-content:space-between; pointer-events:none; }
+  .brand, .privacy { background:var(--panel); border:1px solid rgba(255,255,255,.12); box-shadow:0 12px 30px rgba(0,0,0,.24); backdrop-filter:blur(14px); }
+  .brand { display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:16px; font-weight:800; letter-spacing:.02em; }
+  .brand svg { width:24px; height:24px; color:var(--accent); }
+  .privacy { padding:9px 12px; border-radius:999px; color:var(--muted); font-size:.8rem; }
+  .panel { position:fixed; z-index:500; left:14px; right:14px; bottom:calc(14px + env(safe-area-inset-bottom, 0px)); max-width:480px; max-height:calc(100vh - 100px); overflow:auto; margin:auto; padding:18px; border:1px solid rgba(255,255,255,.14); border-radius:24px; background:var(--panel); box-shadow:0 18px 50px rgba(0,0,0,.34); backdrop-filter:blur(18px); }
+  .eyebrow { margin:0 0 5px; color:var(--accent2); font-size:.78rem; font-weight:800; letter-spacing:.12em; }
+  h1 { margin:0; font-size:clamp(1.35rem, 5vw, 1.8rem); line-height:1.25; }
+  .status { min-height:48px; margin:9px 0 14px; color:var(--muted); font-size:.96rem; line-height:1.55; }
+  .details { display:none; grid-template-columns:1fr 1fr; gap:8px; margin:0 0 13px; }
+  .details.show { display:grid; }
+  .detail { padding:10px 12px; border-radius:14px; background:rgba(255,255,255,.06); }
+  .detail span { display:block; color:var(--muted); font-size:.72rem; margin-bottom:2px; }
+  .detail strong { font-size:.94rem; font-variant-numeric:tabular-nums; }
+  button { width:100%; min-height:54px; border:0; border-radius:16px; color:#1b120d; background:linear-gradient(135deg,var(--accent2),var(--accent)); font:inherit; font-weight:900; font-size:1rem; box-shadow:0 10px 22px rgba(255,107,53,.26); cursor:pointer; touch-action:manipulation; }
+  button:focus-visible { outline:3px solid white; outline-offset:3px; }
+  button:disabled { opacity:.7; cursor:wait; }
+  .actions { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+  .secondary { color:var(--ink); background:rgba(255,255,255,.09); border:1px solid rgba(255,255,255,.15); box-shadow:none; }
+  .primary-wide { grid-column:1 / -1; }
+  .test-button { grid-column:1 / -1; min-height:44px; color:var(--accent2); background:transparent; border:1px dashed rgba(255,179,67,.55); box-shadow:none; }
+  .level-strip { margin:0 0 13px; padding:11px 12px; border-radius:14px; background:rgba(255,255,255,.06); }
+  .level-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:7px; font-weight:900; }
+  .level-row span:last-child { color:var(--muted); font-size:.82rem; font-variant-numeric:tabular-nums; }
+  .xp-track { height:8px; overflow:hidden; border-radius:999px; background:rgba(255,255,255,.1); }
+  .xp-fill { width:0; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--accent2),var(--accent)); transition:width .5s ease; }
+  .leaflet-control-attribution { font-size:10px; }
+  .location-dot { width:24px; height:24px; border:4px solid white; border-radius:50%; background:#1677ff; box-shadow:0 0 0 9px rgba(22,119,255,.2), 0 3px 12px rgba(0,0,0,.35); }
+  .spot-pin { display:grid; place-items:center; width:34px; height:34px; border:3px solid white; border-radius:50% 50% 50% 12%; color:#201109; background:linear-gradient(135deg,var(--accent2),var(--accent)); box-shadow:0 5px 14px rgba(0,0,0,.35); font-size:.86rem; font-weight:900; transform:rotate(-45deg); }
+  .spot-pin span { transform:rotate(45deg); }
+  .leaflet-popup-content-wrapper { border-radius:18px; background:#0f202c; color:var(--ink); box-shadow:0 12px 30px rgba(0,0,0,.3); }
+  .leaflet-popup-tip { background:#0f202c; }
+  .leaflet-popup-content { margin:14px 16px; min-width:190px; font-family:inherit; }
+  .popup-number { color:var(--accent2); font-size:.72rem; font-weight:900; letter-spacing:.1em; }
+  .popup-title { margin:4px 0 5px; font-size:1.05rem; font-weight:900; }
+  .popup-text { margin:0; color:var(--muted); font-size:.86rem; line-height:1.5; }
+  .range-ring { stroke-dasharray:5 5; }
+  .modal { position:fixed; z-index:1000; inset:0; display:none; place-items:center; padding:20px; background:rgba(3,9,13,.76); backdrop-filter:blur(8px); }
+  .modal.open { display:grid; }
+  .quest-card { width:min(100%,440px); max-height:calc(100vh - 40px); overflow:auto; padding:22px; border:1px solid rgba(255,255,255,.16); border-radius:26px; background:linear-gradient(160deg,#152c39,#0b1720 70%); box-shadow:0 28px 80px rgba(0,0,0,.55); }
+  .quest-head { display:flex; align-items:flex-start; justify-content:space-between; gap:15px; }
+  .quest-kicker { margin:0 0 5px; color:var(--accent2); font-size:.78rem; font-weight:900; letter-spacing:.1em; }
+  .quest-title { margin:0; font-size:1.35rem; line-height:1.35; }
+  .close-button { width:42px; min-height:42px; flex:0 0 42px; padding:0; color:var(--ink); background:rgba(255,255,255,.09); box-shadow:none; font-size:1.35rem; }
+  .character { display:grid; place-items:center; width:104px; height:104px; margin:18px auto; border:1px solid rgba(255,179,67,.35); border-radius:50%; background:radial-gradient(circle at 35% 30%,rgba(255,179,67,.28),rgba(255,107,53,.08) 62%,transparent 63%); font-size:4.2rem; filter:drop-shadow(0 10px 14px rgba(0,0,0,.3)); }
+  .question { margin:0 0 14px; font-size:1.05rem; font-weight:800; line-height:1.55; }
+  .choices { display:grid; gap:9px; }
+  .choice { min-height:48px; color:var(--ink); background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); box-shadow:none; text-align:left; padding:12px 15px; }
+  .choice:hover { background:rgba(255,179,67,.14); }
+  .feedback { min-height:26px; margin:12px 0 0; color:#ffcf70; font-weight:800; text-align:center; }
+  .reward { display:none; text-align:center; }
+  .reward.show { display:block; }
+  .reward-icon { font-size:4.5rem; margin:12px 0 3px; display:inline-block; transform-origin:50% 85%; }
+  .reward-icon.get-anim { animation: get-pop .7s cubic-bezier(.34,1.56,.64,1) both, get-idle 1.8s ease-in-out .7s infinite; }
+  .reward-icon.get-anim.wiggle { animation-name: get-pop, get-wiggle; }
+  @keyframes get-pop {
+    0% { transform: scale(.2) translateY(30px) rotate(-15deg); opacity:0; }
+    55% { transform: scale(1.18) translateY(-8px) rotate(6deg); opacity:1; }
+    75% { transform: scale(.94) translateY(2px) rotate(-3deg); }
+    100% { transform: scale(1) translateY(0) rotate(0deg); }
+  }
+  @keyframes get-idle {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-6px) rotate(-3deg); }
+  }
+  @keyframes get-wiggle {
+    0% { transform: scale(.2) translateY(30px) rotate(-15deg); opacity:0; }
+    50% { transform: scale(1.15) rotate(10deg); opacity:1; }
+    65% { transform: scale(1) rotate(-8deg); }
+    80% { transform: scale(1.05) rotate(5deg); }
+    100% { transform: scale(1) rotate(0deg); }
+  }
+  .spark { position:absolute; font-size:1.3rem; opacity:0; pointer-events:none; animation: spark-out .9s ease-out forwards; }
+  @keyframes spark-out {
+    0% { transform: translate(0,0) scale(.4) rotate(0deg); opacity:1; }
+    100% { transform: var(--spark-end) scale(1) rotate(90deg); opacity:0; }
+  }
+  .reward-icon-wrap { position:relative; display:flex; justify-content:center; }
+  @media (prefers-reduced-motion: reduce) {
+    .reward-icon.get-anim, .reward-icon.get-anim.wiggle { animation: none; }
+    .spark { display:none; }
+  }
+  .reward h3 { margin:0 0 7px; font-size:1.4rem; }
+  .reward p { margin:4px 0; color:var(--muted); line-height:1.55; }
+  .reward strong { color:var(--accent2); }
+  .reward-gains { display:flex; justify-content:center; flex-wrap:wrap; gap:8px; margin:10px 0 14px; }
+  .xp-earned { display:inline-block; padding:7px 12px; border-radius:999px; color:#201109; background:var(--accent2); font-weight:900; }
+  .point-earned { display:inline-block; padding:7px 12px; border-radius:999px; color:#fff; background:#1677ff; font-weight:900; }
+  .level-up { min-height:24px; margin:5px 0 12px; color:#ffcf70; font-size:1.05rem; font-weight:900; }
+  .encyclopedia-card { width:min(100%,720px); max-height:calc(100vh - 40px); overflow:auto; padding:22px; border:1px solid rgba(255,255,255,.16); border-radius:26px; background:linear-gradient(160deg,#152c39,#0b1720 70%); box-shadow:0 28px 80px rgba(0,0,0,.55); }
+  .book-summary { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin:16px 0; }
+  .book-stat { padding:11px 8px; border-radius:14px; background:rgba(255,255,255,.06); text-align:center; }
+  .book-stat span { display:block; color:var(--muted); font-size:.72rem; }
+  .book-stat strong { display:block; margin-top:3px; color:var(--accent2); font-size:1.05rem; }
+  .book-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  .book-entry { min-height:150px; padding:14px; border:1px solid rgba(255,255,255,.12); border-radius:18px; background:rgba(255,255,255,.055); text-align:center; }
+  .book-entry:not(.locked) { cursor:pointer; }
+  .book-entry:not(.locked):focus-visible { outline:3px solid var(--accent2); outline-offset:2px; }
+  .book-entry.locked { color:#748590; filter:saturate(.2); }
+  .book-emoji { display:block; margin-bottom:5px; font-size:2.6rem; }
+  .book-number { color:var(--accent2); font-size:.7rem; font-weight:900; letter-spacing:.08em; }
+  .book-name { margin:4px 0; font-size:.9rem; font-weight:900; line-height:1.35; }
+  .book-item { color:var(--muted); font-size:.76rem; line-height:1.4; }
+  .ar-button { grid-column:1 / -1; color:#fff; background:linear-gradient(135deg,#1677ff,#7248e8); box-shadow:0 10px 22px rgba(22,119,255,.25); }
+  .reward-actions { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+  .ar-modal { position:fixed; z-index:2000; inset:0; display:none; overflow:hidden; background:#03080b; }
+  .ar-modal.open { display:block; }
+  .ar-stage { position:absolute; inset:0; overflow:hidden; touch-action:none; }
+  .ar-video { width:100%; height:100%; object-fit:cover; background:#101820; }
+  .ar-gradient { position:absolute; inset:0; pointer-events:none; background:linear-gradient(180deg,rgba(0,0,0,.5),transparent 24%,transparent 65%,rgba(0,0,0,.72)); }
+  .ar-character { position:absolute; left:50%; top:48%; display:grid; place-items:center; width:140px; height:140px; transform:translate(-50%,-50%); border:2px solid rgba(255,255,255,.72); border-radius:50%; background:radial-gradient(circle,rgba(255,179,67,.24),rgba(255,107,53,.06) 58%,transparent 60%); font-size:6rem; filter:drop-shadow(0 15px 18px rgba(0,0,0,.45)); user-select:none; -webkit-user-select:none; }
+  .ar-character::after { content:''; position:absolute; left:25%; right:25%; bottom:-12px; height:13px; border-radius:50%; background:rgba(0,0,0,.36); filter:blur(5px); }
+  .ar-top { position:absolute; z-index:2; top:calc(16px + env(safe-area-inset-top, 0px)); left:16px; right:16px; display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+  .ar-label { padding:10px 13px; border-radius:15px; background:rgba(6,15,21,.7); backdrop-filter:blur(12px); }
+  .ar-label small { display:block; color:#bcd0dd; font-size:.72rem; }
+  .ar-label strong { display:block; margin-top:2px; font-size:1rem; }
+  .ar-close { width:46px; min-height:46px; flex:0 0 46px; padding:0; color:#fff; background:rgba(6,15,21,.72); box-shadow:none; font-size:1.4rem; backdrop-filter:blur(12px); }
+  .ar-controls { position:absolute; z-index:2; left:16px; right:16px; bottom:calc(18px + env(safe-area-inset-bottom, 0px)); padding:14px; border:1px solid rgba(255,255,255,.16); border-radius:20px; background:rgba(6,15,21,.74); backdrop-filter:blur(14px); }
+  .ar-hint { margin:0 0 10px; color:#d7e3ea; font-size:.88rem; text-align:center; }
+  .ar-size-row { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:10px; color:#fff; font-size:.82rem; }
+  .ar-size-row input { width:100%; accent-color:var(--accent2); }
+  .ar-error { position:absolute; z-index:3; inset:25% 24px auto; display:none; padding:18px; border-radius:18px; background:rgba(11,23,32,.92); color:#fff; text-align:center; line-height:1.6; }
+  .ar-error.show { display:block; }
+  @media (max-width:380px) { .book-grid { grid-template-columns:1fr; } }
+  @media (min-width:700px) { .panel { left:24px; right:auto; bottom:24px; width:420px; } .topbar { left:24px; right:24px; top:24px; } }
+
+  /* Leaflet 1.9.4 core styles, inlined (CSP allows only Google Fonts as an external stylesheet) */
+  .leaflet-pane,.leaflet-tile,.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-tile-container,.leaflet-pane>svg,.leaflet-pane>canvas,.leaflet-zoom-box,.leaflet-image-layer,.leaflet-layer{position:absolute;left:0;top:0}.leaflet-container{overflow:hidden}.leaflet-tile,.leaflet-marker-icon,.leaflet-marker-shadow{-webkit-user-select:none;-moz-user-select:none;user-select:none;-webkit-user-drag:none}.leaflet-tile::selection{background:transparent}.leaflet-safari .leaflet-tile{image-rendering:-webkit-optimize-contrast}.leaflet-safari .leaflet-tile-container{width:1600px;height:1600px;-webkit-transform-origin:0 0}.leaflet-marker-icon,.leaflet-marker-shadow{display:block}.leaflet-container .leaflet-overlay-pane svg{max-width:none!important;max-height:none!important}.leaflet-container .leaflet-marker-pane img,.leaflet-container .leaflet-shadow-pane img,.leaflet-container .leaflet-tile-pane img,.leaflet-container img.leaflet-image-layer,.leaflet-container .leaflet-tile{max-width:none!important;max-height:none!important;width:auto;padding:0}.leaflet-container img.leaflet-tile{mix-blend-mode:plus-lighter}.leaflet-container.leaflet-touch-zoom{-ms-touch-action:pan-x pan-y;touch-action:pan-x pan-y}.leaflet-container.leaflet-touch-drag{-ms-touch-action:pinch-zoom;touch-action:none;touch-action:pinch-zoom}.leaflet-container.leaflet-touch-drag.leaflet-touch-zoom{-ms-touch-action:none;touch-action:none}.leaflet-container{-webkit-tap-highlight-color:transparent}.leaflet-container a{-webkit-tap-highlight-color:rgba(51,181,229,.4)}.leaflet-tile{filter:inherit;visibility:hidden}.leaflet-tile-loaded{visibility:inherit}.leaflet-zoom-box{width:0;height:0;box-sizing:border-box;z-index:800}.leaflet-overlay-pane svg{-moz-user-select:none}.leaflet-pane{z-index:400}.leaflet-tile-pane{z-index:200}.leaflet-overlay-pane{z-index:400}.leaflet-shadow-pane{z-index:500}.leaflet-marker-pane{z-index:600}.leaflet-tooltip-pane{z-index:650}.leaflet-popup-pane{z-index:700}.leaflet-map-pane canvas{z-index:100}.leaflet-map-pane svg{z-index:200}.leaflet-vml-shape{width:1px;height:1px}.lvml{behavior:url(#default#VML);display:inline-block;position:absolute}.leaflet-control{position:relative;z-index:800;pointer-events:auto}.leaflet-top,.leaflet-bottom{position:absolute;z-index:1000;pointer-events:none}.leaflet-top{top:0}.leaflet-right{right:0}.leaflet-bottom{bottom:0}.leaflet-left{left:0}.leaflet-control{float:left;clear:both}.leaflet-right .leaflet-control{float:right}.leaflet-top .leaflet-control{margin-top:10px}.leaflet-bottom .leaflet-control{margin-bottom:10px}.leaflet-left .leaflet-control{margin-left:10px}.leaflet-right .leaflet-control{margin-right:10px}.leaflet-fade-anim .leaflet-popup{opacity:0;transition:opacity .2s linear}.leaflet-fade-anim .leaflet-map-pane .leaflet-popup{opacity:1}.leaflet-zoom-animated{transform-origin:0 0}svg.leaflet-zoom-animated{will-change:transform}.leaflet-zoom-anim .leaflet-zoom-animated{transition:transform .25s cubic-bezier(0,0,.25,1)}.leaflet-zoom-anim .leaflet-tile,.leaflet-pan-anim .leaflet-tile{transition:none}.leaflet-zoom-anim .leaflet-zoom-hide{visibility:hidden}.leaflet-interactive{cursor:pointer}.leaflet-grab{cursor:grab}.leaflet-crosshair,.leaflet-crosshair .leaflet-interactive{cursor:crosshair}.leaflet-popup-pane,.leaflet-control{cursor:auto}.leaflet-dragging .leaflet-grab,.leaflet-dragging .leaflet-grab .leaflet-interactive,.leaflet-dragging .leaflet-marker-draggable{cursor:grabbing}.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-image-layer,.leaflet-pane>svg path,.leaflet-tile-container{pointer-events:none}.leaflet-marker-icon.leaflet-interactive,.leaflet-image-layer.leaflet-interactive,.leaflet-pane>svg path.leaflet-interactive,svg.leaflet-image-layer.leaflet-interactive path{pointer-events:auto}.leaflet-container{background:#ddd;outline-offset:1px}.leaflet-container a{color:#0078a8}.leaflet-zoom-box{border:2px dotted #38f;background:rgba(255,255,255,.5)}.leaflet-container{font-family:"Helvetica Neue",Arial,Helvetica,sans-serif;font-size:.75rem;line-height:1.5}.leaflet-bar{box-shadow:0 1px 5px rgba(0,0,0,.65);border-radius:4px}.leaflet-bar a{background-color:#fff;border-bottom:1px solid #ccc;width:26px;height:26px;line-height:26px;display:block;text-align:center;text-decoration:none;color:#000}.leaflet-bar a,.leaflet-control-layers-toggle{background-position:50% 50%;background-repeat:no-repeat;display:block}.leaflet-bar a:hover,.leaflet-bar a:focus{background-color:#f4f4f4}.leaflet-bar a:first-child{border-top-left-radius:4px;border-top-right-radius:4px}.leaflet-bar a:last-child{border-bottom-left-radius:4px;border-bottom-right-radius:4px;border-bottom:none}.leaflet-bar a.leaflet-disabled{cursor:default;background-color:#f4f4f4;color:#bbb}.leaflet-touch .leaflet-bar a{width:30px;height:30px;line-height:30px}.leaflet-touch .leaflet-bar a:first-child{border-top-left-radius:2px;border-top-right-radius:2px}.leaflet-touch .leaflet-bar a:last-child{border-bottom-left-radius:2px;border-bottom-right-radius:2px}.leaflet-control-zoom-in,.leaflet-control-zoom-out{font:700 18px 'Lucida Console',Monaco,monospace;text-indent:1px}.leaflet-touch .leaflet-control-zoom-in,.leaflet-touch .leaflet-control-zoom-out{font-size:22px}.leaflet-control-layers{box-shadow:0 1px 5px rgba(0,0,0,.4);background:#fff;border-radius:5px}.leaflet-control-layers-toggle{width:36px;height:36px}.leaflet-touch .leaflet-control-layers-toggle{width:44px;height:44px}.leaflet-control-layers .leaflet-control-layers-list,.leaflet-control-layers-expanded .leaflet-control-layers-toggle{display:none}.leaflet-control-layers-expanded .leaflet-control-layers-list{display:block;position:relative}.leaflet-control-layers-expanded{padding:6px 10px 6px 6px;color:#333;background:#fff}.leaflet-control-layers-scrollbar{overflow-y:scroll;overflow-x:hidden;padding-right:5px}.leaflet-control-layers-selector{margin-top:2px;position:relative;top:1px}.leaflet-control-layers label{display:block;font-size:1.08333em}.leaflet-control-layers-separator{height:0;border-top:1px solid #ddd;margin:5px -10px 5px -6px}.leaflet-container .leaflet-control-attribution{background:#fff;background:rgba(255,255,255,.8);margin:0}.leaflet-control-attribution,.leaflet-control-scale-line{padding:0 5px;color:#333;line-height:1.4}.leaflet-control-attribution a{text-decoration:none}.leaflet-control-attribution a:hover,.leaflet-control-attribution a:focus{text-decoration:underline}.leaflet-attribution-flag{display:inline!important;vertical-align:baseline!important;width:1em;height:.6669em}.leaflet-left .leaflet-control-scale{margin-left:5px}.leaflet-bottom .leaflet-control-scale{margin-bottom:5px}.leaflet-control-scale-line{border:2px solid #777;border-top:none;line-height:1.1;padding:2px 5px 1px;white-space:nowrap;box-sizing:border-box;background:rgba(255,255,255,.8);text-shadow:1px 1px #fff}.leaflet-control-scale-line:not(:first-child){border-top:2px solid #777;border-bottom:none;margin-top:-2px}.leaflet-control-scale-line:not(:first-child):not(:last-child){border-bottom:2px solid #777}.leaflet-touch .leaflet-control-attribution,.leaflet-touch .leaflet-control-layers,.leaflet-touch .leaflet-bar{box-shadow:none}.leaflet-touch .leaflet-control-layers,.leaflet-touch .leaflet-bar{border:2px solid rgba(0,0,0,.2);background-clip:padding-box}.leaflet-popup{position:absolute;text-align:center;margin-bottom:20px}.leaflet-popup-content-wrapper{padding:1px;text-align:left;border-radius:12px}.leaflet-popup-content{margin:13px 24px 13px 20px;line-height:1.3;font-size:1.08333em;min-height:1px}.leaflet-popup-content p{margin:1.3em 0}.leaflet-popup-tip-container{width:40px;height:20px;position:absolute;left:50%;margin-top:-1px;margin-left:-20px;overflow:hidden;pointer-events:none}.leaflet-popup-tip{width:17px;height:17px;padding:1px;margin:-10px auto 0;pointer-events:auto;transform:rotate(45deg)}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#fff;color:#333;box-shadow:0 3px 14px rgba(0,0,0,.4)}.leaflet-container a.leaflet-popup-close-button{position:absolute;top:0;right:0;border:none;text-align:center;width:24px;height:24px;font:16px/24px Tahoma,Verdana,sans-serif;color:#757575;text-decoration:none;background:transparent}.leaflet-container a.leaflet-popup-close-button:hover,.leaflet-container a.leaflet-popup-close-button:focus{color:#585858}.leaflet-popup-scrolled{overflow:auto}.leaflet-div-icon{background:#fff;border:1px solid #666}.leaflet-tooltip{position:absolute;padding:6px;background-color:#fff;border:1px solid #fff;border-radius:3px;color:#222;white-space:nowrap;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.4)}.leaflet-tooltip.leaflet-interactive{cursor:pointer;pointer-events:auto}.leaflet-tooltip-top:before,.leaflet-tooltip-bottom:before,.leaflet-tooltip-left:before,.leaflet-tooltip-right:before{position:absolute;pointer-events:none;border:6px solid transparent;background:transparent;content:""}.leaflet-tooltip-bottom{margin-top:6px}.leaflet-tooltip-top{margin-top:-6px}.leaflet-tooltip-bottom:before,.leaflet-tooltip-top:before{left:50%;margin-left:-6px}.leaflet-tooltip-top:before{bottom:0;margin-bottom:-12px;border-top-color:#fff}.leaflet-tooltip-bottom:before{top:0;margin-top:-12px;margin-left:-6px;border-bottom-color:#fff}.leaflet-tooltip-left{margin-left:-6px}.leaflet-tooltip-right{margin-left:6px}.leaflet-tooltip-left:before,.leaflet-tooltip-right:before{top:50%;margin-top:-6px}.leaflet-tooltip-left:before{right:0;margin-right:-12px;border-left-color:#fff}.leaflet-tooltip-right:before{left:0;margin-left:-12px;border-right-color:#fff}
+</style>
+<main>
+  <div id="map" aria-label="現在地を表示する地図"></div>
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 21s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z" fill="currentColor"/><circle cx="12" cy="9" r="2.7" fill="#fff"/></svg>
+      倉吉クエスト
+    </div>
+    <div class="privacy" id="collection">⭐ 0 POINT</div>
+  </header>
+  <section class="panel" aria-live="polite">
+    <p class="eyebrow">STEP 06</p>
+    <h1>集めてARで出会う</h1>
+    <p class="status" id="status">「探索を開始」を押して歩きましょう。スポットまで50m以内に近づくと問題が出ます。</p>
+    <div class="level-strip" aria-label="経験値">
+      <div class="level-row"><span id="level-label">LEVEL 1</span><span id="points-label">⭐ 0 POINT</span><span id="xp-label">0 / 200 XP</span></div>
+      <div class="xp-track"><div class="xp-fill" id="xp-fill"></div></div>
+    </div>
+    <div class="details" id="details">
+      <div class="detail"><span>緯度</span><strong id="latitude">—</strong></div>
+      <div class="detail"><span>経度</span><strong id="longitude">—</strong></div>
+      <div class="detail"><span>精度</span><strong id="accuracy">—</strong></div>
+      <div class="detail"><span>更新時刻</span><strong id="updated">—</strong></div>
+    </div>
+    <div class="actions">
+      <button class="secondary" id="show-spots" type="button">10か所を見る</button>
+      <button class="secondary" id="open-book" type="button">図鑑を見る</button>
+      <button class="primary-wide" id="locate" type="button">探索を開始</button>
+      <button class="ar-button" id="open-ar" type="button">ARカメラを開く</button>
+      <button class="test-button" id="test-quest" type="button">現地に行かず体験する</button>
+    </div>
+  </section>
+</main>
+<div class="modal" id="quest-modal" role="dialog" aria-modal="true" aria-labelledby="quest-title">
+  <section class="quest-card">
+    <div class="quest-head">
+      <div><p class="quest-kicker" id="quest-kicker">QUEST</p><h2 class="quest-title" id="quest-title">問題</h2></div>
+      <button class="close-button" id="close-quest" type="button" aria-label="問題を閉じる">×</button>
+    </div>
+    <div id="quiz-view">
+      <div class="character" id="character" aria-hidden="true">🦊</div>
+      <p class="question" id="question"></p>
+      <div class="choices" id="choices"></div>
+      <p class="feedback" id="feedback" aria-live="polite"></p>
+    </div>
+    <div class="reward" id="reward-view">
+      <div class="reward-icon-wrap" id="reward-icon-wrap"><div class="reward-icon" id="reward-icon">🏆</div></div>
+      <h3>クエストクリア！</h3>
+      <p><strong id="reward-character"></strong> が仲間になりました。</p>
+      <p>アイテム「<strong id="reward-item"></strong>」を獲得！</p>
+      <div class="reward-gains"><span class="xp-earned" id="xp-earned">+100 XP</span><span class="point-earned" id="points-earned">+100 POINT</span></div>
+      <p class="level-up" id="level-up"></p>
+      <div class="reward-actions"><button class="secondary" id="reward-ar" type="button">ARで見る</button><button id="finish-quest" type="button">地図へ戻る</button></div>
+    </div>
+  </section>
+</div>
+<div class="modal" id="book-modal" role="dialog" aria-modal="true" aria-labelledby="book-title">
+  <section class="encyclopedia-card">
+    <div class="quest-head">
+      <div><p class="quest-kicker">COLLECTION</p><h2 class="quest-title" id="book-title">倉吉キャラクター図鑑</h2></div>
+      <button class="close-button" id="close-book" type="button" aria-label="図鑑を閉じる">×</button>
+    </div>
+    <div class="book-summary">
+      <div class="book-stat"><span>レベル</span><strong id="book-level">1</strong></div>
+      <div class="book-stat"><span>経験値</span><strong id="book-xp">0 XP</strong></div>
+      <div class="book-stat"><span>ポイント</span><strong id="book-points">0 P</strong></div>
+      <div class="book-stat"><span>発見</span><strong id="book-count">0 / 10</strong></div>
+    </div>
+    <div class="book-grid" id="book-grid"></div>
+  </section>
+</div>
+<div class="ar-modal" id="ar-modal" role="dialog" aria-modal="true" aria-label="ARカメラ">
+  <div class="ar-stage" id="ar-stage">
+    <video class="ar-video" id="ar-video" autoplay muted playsinline></video>
+    <div class="ar-gradient"></div>
+    <div class="ar-character" id="ar-character" aria-label="ARキャラクター">🦊</div>
+    <div class="ar-top">
+      <div class="ar-label"><small>AR CHARACTER</small><strong id="ar-name">しらかべフォックス</strong></div>
+      <button class="ar-close" id="close-ar" type="button" aria-label="ARを閉じる">×</button>
+    </div>
+    <p class="ar-error" id="ar-error"></p>
+    <div class="ar-controls">
+      <p class="ar-hint">画面をタップしてキャラクターを置こう</p>
+      <label class="ar-size-row"><span>小さく</span><input id="ar-size" type="range" min="80" max="240" value="140" aria-label="キャラクターの大きさ"><span>大きく</span></label>
+    </div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" crossorigin=""></script>
+<script>
+  const map = L.map('map', { zoomControl: false }).setView([35.4307, 133.8256], 13);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  }).addTo(map);
+  L.control.zoom({ position: 'topright' }).addTo(map);
+
+  const spots = [
+    { name:'JR倉吉駅', category:'交通', coords:[35.4547,133.8497], text:'倉吉の玄関口。まち歩きのスタート地点です。', question:'倉吉駅を通る鉄道路線はどれ？', choices:['山陰本線','山陽本線','伯備線'], answer:0, emoji:'🦅', character:'レールホーク', item:'旅立ちの切符' },
+    { name:'白壁土蔵群', category:'歴史', coords:[35.4296,133.8260], text:'白壁と赤い石州瓦が続く、倉吉を代表する町並みです。', question:'白壁土蔵群の屋根に多く使われている瓦の色は？', choices:['赤色','青色','緑色'], answer:0, emoji:'🦊', character:'しらかべフォックス', item:'赤瓦のかけら' },
+    { name:'赤瓦一号館', category:'文化', coords:[35.4293,133.8264], text:'大正期の醤油仕込み蔵を生かした赤瓦の中心施設です。', question:'赤瓦一号館が以前使われていた目的は？', choices:['醤油の仕込み蔵','学校','駅舎'], answer:0, emoji:'🐈', character:'クラネコ', item:'香りの小びん' },
+    { name:'打吹公園', category:'自然', coords:[35.4299,133.8220], text:'打吹山のふもとに広がる、緑豊かな市民の公園です。', question:'打吹公園の近くにある山の名前は？', choices:['打吹山','大山','富士山'], answer:0, emoji:'🐿️', character:'うつぶきリス', item:'森のどんぐり' },
+    { name:'倉吉博物館', category:'学び', coords:[35.4307,133.8211], text:'倉吉の歴史・美術・考古資料に出会える博物館です。', question:'博物館で主に学べるものはどれ？', choices:['歴史や美術','自動車の運転','海水浴'], answer:0, emoji:'🦉', character:'ものしりフクロウ', item:'学びの羽根' },
+    { name:'エースパックなしっこ館', category:'科学', coords:[35.4313,133.8356], text:'鳥取県の梨について体験しながら学べる施設です。', question:'なしっこ館のテーマになっている果物は？', choices:['梨','みかん','バナナ'], answer:0, emoji:'🐻', character:'なしクマ', item:'黄金の梨' },
+    { name:'鳥取県立美術館', category:'芸術', coords:[35.4316,133.8340], text:'倉吉パークスクエアにある、アートを楽しむ拠点です。', question:'美術館で出会えるものはどれ？', choices:['アート作品','ジェットコースター','野球場'], answer:0, emoji:'🦋', character:'アートバタフライ', item:'虹色の絵筆' },
+    { name:'円形劇場くらよしフィギュアミュージアム', category:'創作', coords:[35.4333,133.8300], text:'旧校舎を活用した、フィギュア文化とものづくりの施設です。', question:'円形劇場で多く展示されているものは？', choices:['フィギュア','天体望遠鏡','蒸気機関車'], answer:0, emoji:'🤖', character:'フィギュアロボ', item:'創作ギア' },
+    { name:'倉吉淀屋', category:'歴史', coords:[35.4306,133.8278], text:'倉吉に現存する町家の中で最も古いとされる建物です。', question:'倉吉淀屋はどのような建物？', choices:['歴史ある町家','現代の高層ビル','野外競技場'], answer:0, emoji:'🐢', character:'よどやガメ', item:'時の小判' },
+    { name:'大蓮寺', category:'文化', coords:[35.4287,133.8284], text:'白壁土蔵群の近くにある、地域の歴史を感じる寺院です。', question:'大蓮寺があるのはどの市？', choices:['倉吉市','鳥取市','米子市'], answer:0, emoji:'🐉', character:'だいれんドラゴン', item:'蓮の宝珠' }
+  ];
+
+  const spotLayer = L.featureGroup().addTo(map);
+  spots.forEach((spot, index) => {
+    const icon = L.divIcon({
+      className:'',
+      html:`<div class="spot-pin"><span>${index + 1}</span></div>`,
+      iconSize:[34,34],
+      iconAnchor:[17,34],
+      popupAnchor:[0,-32]
+    });
+    L.marker(spot.coords, { icon, title:`${index + 1}. ${spot.name}` })
+      .bindPopup(`<div class="popup-number">SPOT ${String(index + 1).padStart(2,'0')} ・ ${spot.category}</div><div class="popup-title">${spot.name}</div><p class="popup-text">${spot.text}</p>`)
+      .addTo(spotLayer);
+    L.circle(spot.coords, { radius:50, color:'#ff6b35', weight:1, opacity:.55, fillColor:'#ffb343', fillOpacity:.07, className:'range-ring', interactive:false }).addTo(spotLayer);
+  });
+
+  const statusEl = document.getElementById('status');
+  const button = document.getElementById('locate');
+  const showSpotsButton = document.getElementById('show-spots');
+  const testQuestButton = document.getElementById('test-quest');
+  const openBookButton = document.getElementById('open-book');
+  const openArButton = document.getElementById('open-ar');
+  const details = document.getElementById('details');
+  const modal = document.getElementById('quest-modal');
+  const bookModal = document.getElementById('book-modal');
+  const arModal = document.getElementById('ar-modal');
+  const arVideo = document.getElementById('ar-video');
+  const arCharacter = document.getElementById('ar-character');
+
+  function loadState() {
+    try {
+      return {
+        cleared: new Set(JSON.parse(localStorage.getItem('kurayoshi-cleared-spots') || '[]')),
+        xp: Number(localStorage.getItem('kurayoshi-xp')),
+        points: Number(localStorage.getItem('kurayoshi-points'))
+      };
+    } catch (e) {
+      return { cleared: new Set(), xp: NaN, points: NaN };
+    }
+  }
+  const initialState = loadState();
+  const cleared = initialState.cleared;
+  let xp = Number.isFinite(initialState.xp) ? initialState.xp : cleared.size * 100;
+  let points = Number.isFinite(initialState.points) ? initialState.points : cleared.size * 100;
+
+  let marker;
+  let accuracyCircle;
+  let watchId = null;
+  let activeSpotIndex = null;
+  let lastPoint = null;
+  let cameraStream = null;
+  let currentArIndex = 1;
+
+  const locationIcon = L.divIcon({ className: '', html: '<div class="location-dot"></div>', iconSize: [24,24], iconAnchor: [12,12] });
+
+  function getLevel(value = xp) {
+    return Math.floor(value / 200) + 1;
+  }
+
+  function persist() {
+    try {
+      localStorage.setItem('kurayoshi-xp', String(xp));
+      localStorage.setItem('kurayoshi-points', String(points));
+      localStorage.setItem('kurayoshi-cleared-spots', JSON.stringify([...cleared]));
+    } catch (e) { /* storage unavailable in this viewer — state just won't persist */ }
+  }
+
+  function updateProgress() {
+    const level = getLevel();
+    const levelXp = xp % 200;
+    document.getElementById('collection').textContent = `⭐ ${points} POINT`;
+    document.getElementById('level-label').textContent = `LEVEL ${level}`;
+    document.getElementById('points-label').textContent = `⭐ ${points} POINT`;
+    document.getElementById('xp-label').textContent = `${levelXp} / 200 XP`;
+    document.getElementById('xp-fill').style.width = `${levelXp / 2}%`;
+    persist();
+  }
+
+  function renderBook() {
+    document.getElementById('book-level').textContent = getLevel();
+    document.getElementById('book-xp').textContent = `${xp} XP`;
+    document.getElementById('book-points').textContent = `${points} P`;
+    document.getElementById('book-count').textContent = `${cleared.size} / ${spots.length}`;
+    const grid = document.getElementById('book-grid');
+    grid.replaceChildren();
+    spots.forEach((spot,index) => {
+      const found = cleared.has(index);
+      const entry = document.createElement('article');
+      entry.className = `book-entry${found ? '' : ' locked'}`;
+      entry.innerHTML = `<span class="book-number">No. ${String(index + 1).padStart(2,'0')}</span><span class="book-emoji">${found ? spot.emoji : '❔'}</span><div class="book-name">${found ? spot.character : '未発見'}</div><div class="book-item">${found ? `アイテム：${spot.item}` : `${spot.name}で発見しよう`}</div>`;
+      if (found) {
+        entry.tabIndex = 0;
+        entry.setAttribute('role','button');
+        entry.setAttribute('aria-label',`${spot.character}をARで表示`);
+        entry.addEventListener('click', () => { closeBook(); startAR(index); });
+        entry.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); closeBook(); startAR(index); } });
+      }
+      grid.appendChild(entry);
+    });
+  }
+
+  function distanceMetres(a, b) {
+    const toRad = value => value * Math.PI / 180;
+    const earth = 6371000;
+    const dLat = toRad(b[0] - a[0]);
+    const dLon = toRad(b[1] - a[1]);
+    const lat1 = toRad(a[0]);
+    const lat2 = toRad(b[0]);
+    const h = Math.sin(dLat/2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon/2) ** 2;
+    return earth * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1-h));
+  }
+
+  function openQuest(index, isTest = false) {
+    const spot = spots[index];
+    activeSpotIndex = index;
+    document.getElementById('quest-kicker').textContent = `${isTest ? '体験モード ・ ' : ''}SPOT ${String(index + 1).padStart(2,'0')}`;
+    document.getElementById('quest-title').textContent = spot.name;
+    document.getElementById('character').textContent = spot.emoji;
+    document.getElementById('question').textContent = spot.question;
+    document.getElementById('feedback').textContent = '';
+    document.getElementById('quiz-view').style.display = 'block';
+    document.getElementById('reward-view').classList.remove('show');
+    const choices = document.getElementById('choices');
+    choices.replaceChildren();
+    spot.choices.forEach((choice, choiceIndex) => {
+      const choiceButton = document.createElement('button');
+      choiceButton.type = 'button';
+      choiceButton.className = 'choice';
+      choiceButton.textContent = choice;
+      choiceButton.addEventListener('click', () => answerQuest(choiceIndex));
+      choices.appendChild(choiceButton);
+    });
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    document.getElementById('close-quest').focus();
+  }
+
+  function answerQuest(choiceIndex) {
+    const spot = spots[activeSpotIndex];
+    if (choiceIndex !== spot.answer) {
+      document.getElementById('feedback').textContent = 'もう一度考えてみよう！';
+      return;
+    }
+    const wasCleared = cleared.has(activeSpotIndex);
+    const previousLevel = getLevel();
+    cleared.add(activeSpotIndex);
+    if (!wasCleared) {
+      xp += 100;
+      points += 100;
+    }
+    updateProgress();
+    document.getElementById('quiz-view').style.display = 'none';
+    const rewardIcon = document.getElementById('reward-icon');
+    rewardIcon.textContent = spot.emoji;
+    document.getElementById('reward-character').textContent = spot.character;
+    document.getElementById('reward-item').textContent = spot.item;
+    document.getElementById('xp-earned').textContent = wasCleared ? '獲得済み' : '+100 XP';
+    document.getElementById('points-earned').textContent = wasCleared ? '加算済み' : '+100 POINT';
+    document.getElementById('level-up').textContent = getLevel() > previousLevel ? `LEVEL ${getLevel()} にアップ！` : '';
+    document.getElementById('reward-view').classList.add('show');
+    playGetAnimation(rewardIcon, !wasCleared);
+  }
+
+  function playGetAnimation(iconEl, withSparks) {
+    iconEl.classList.remove('get-anim', 'wiggle');
+    void iconEl.offsetWidth;
+    iconEl.classList.add('get-anim', 'wiggle');
+    const wrap = document.getElementById('reward-icon-wrap');
+    wrap.querySelectorAll('.spark').forEach(node => node.remove());
+    if (!withSparks) return;
+    const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) return;
+    const glyphs = ['✨','⭐','✨','⭐','✨','⭐'];
+    glyphs.forEach((glyph, i) => {
+      const angle = (Math.PI * 2 * i) / glyphs.length - Math.PI / 2;
+      const distance = 64 + Math.random() * 18;
+      const x = Math.round(Math.cos(angle) * distance);
+      const y = Math.round(Math.sin(angle) * distance);
+      const spark = document.createElement('span');
+      spark.className = 'spark';
+      spark.textContent = glyph;
+      spark.style.left = '50%';
+      spark.style.top = '50%';
+      spark.style.setProperty('--spark-end', `translate(${x}px, ${y}px)`);
+      spark.style.animationDelay = `${i * 25}ms`;
+      wrap.appendChild(spark);
+      spark.addEventListener('animationend', () => spark.remove());
+    });
+  }
+
+  function closeQuest() {
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+    activeSpotIndex = null;
+  }
+
+  function openBook() {
+    renderBook();
+    bookModal.classList.add('open');
+    document.getElementById('close-book').focus();
+  }
+
+  function closeBook() {
+    bookModal.classList.remove('open');
+  }
+
+  async function startAR(index) {
+    currentArIndex = index;
+    const spot = spots[index];
+    document.getElementById('ar-name').textContent = spot.character;
+    arCharacter.textContent = spot.emoji;
+    arCharacter.style.left = '50%';
+    arCharacter.style.top = '48%';
+    document.getElementById('ar-error').classList.remove('show');
+    arModal.classList.add('open');
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('camera_unavailable');
+      cameraStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:'environment' } }, audio:false });
+      arVideo.srcObject = cameraStream;
+      await arVideo.play();
+    } catch (error) {
+      const errorEl = document.getElementById('ar-error');
+      errorEl.textContent = 'カメラを開始できませんでした。設定でこのページのカメラ利用を許可してください。';
+      errorEl.classList.add('show');
+    }
+  }
+
+  function closeAR() {
+    if (cameraStream) cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+    arVideo.srcObject = null;
+    arModal.classList.remove('open');
+  }
+
+  function checkNearby(point) {
+    const distances = spots.map(spot => distanceMetres(point, spot.coords));
+    const nearestDistance = Math.min(...distances);
+    const nearestIndex = distances.indexOf(nearestDistance);
+    if (nearestDistance <= 50 && !cleared.has(nearestIndex) && activeSpotIndex === null) {
+      statusEl.textContent = `${spots[nearestIndex].name}に到着！クエストが出現しました。`;
+      openQuest(nearestIndex);
+    } else if (cleared.has(nearestIndex) && nearestDistance <= 50) {
+      statusEl.textContent = `${spots[nearestIndex].name}はクリア済みです。次のスポットへ進みましょう。`;
+    } else {
+      statusEl.textContent = `最寄りは「${spots[nearestIndex].name}」まで約${Math.round(nearestDistance)}m。50m以内でクエスト出現！`;
+    }
+  }
+
+  showSpotsButton.addEventListener('click', () => {
+    map.fitBounds(spotLayer.getBounds(), { padding:[45,45], maxZoom:14 });
+    statusEl.textContent = '倉吉市内の10スポットを表示しました。番号をタップしてみましょう。';
+  });
+
+  testQuestButton.addEventListener('click', () => openQuest(0, true));
+  openBookButton.addEventListener('click', openBook);
+  openArButton.addEventListener('click', () => {
+    const unlocked = [...cleared];
+    startAR(unlocked.length ? unlocked[unlocked.length - 1] : 1);
+  });
+  document.getElementById('close-quest').addEventListener('click', closeQuest);
+  document.getElementById('finish-quest').addEventListener('click', closeQuest);
+  document.getElementById('reward-ar').addEventListener('click', () => startAR(activeSpotIndex ?? currentArIndex));
+  document.getElementById('close-book').addEventListener('click', closeBook);
+  document.getElementById('close-ar').addEventListener('click', closeAR);
+  document.getElementById('ar-size').addEventListener('input', event => {
+    const size = `${event.target.value}px`;
+    arCharacter.style.width = size;
+    arCharacter.style.height = size;
+    arCharacter.style.fontSize = `${event.target.value * .43}px`;
+  });
+  document.getElementById('ar-stage').addEventListener('pointerdown', event => {
+    if (event.target.closest('.ar-controls,.ar-top')) return;
+    arCharacter.style.left = `${event.clientX / window.innerWidth * 100}%`;
+    arCharacter.style.top = `${event.clientY / window.innerHeight * 100}%`;
+  });
+  modal.addEventListener('click', event => { if (event.target === modal) closeQuest(); });
+  bookModal.addEventListener('click', event => { if (event.target === bookModal) closeBook(); });
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    if (modal.classList.contains('open')) closeQuest();
+    if (bookModal.classList.contains('open')) closeBook();
+    if (arModal.classList.contains('open')) closeAR();
+  });
+
+  function showPosition(position) {
+    const { latitude, longitude, accuracy } = position.coords;
+    const point = [latitude, longitude];
+    lastPoint = point;
+    if (marker) map.removeLayer(marker);
+    if (accuracyCircle) map.removeLayer(accuracyCircle);
+    accuracyCircle = L.circle(point, { radius: accuracy, color:'#1677ff', weight:1, fillColor:'#1677ff', fillOpacity:.1 }).addTo(map);
+    marker = L.marker(point, { icon: locationIcon, title:'現在地' }).addTo(map).bindPopup('現在地').openPopup();
+    map.flyTo(point, accuracy > 100 ? 16 : 18, { duration:1.1 });
+    document.getElementById('latitude').textContent = latitude.toFixed(6);
+    document.getElementById('longitude').textContent = longitude.toFixed(6);
+    document.getElementById('accuracy').textContent = `約 ${Math.round(accuracy)} m`;
+    document.getElementById('updated').textContent = new Date(position.timestamp).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'});
+    details.classList.add('show');
+    checkNearby(point);
+    button.textContent = '現在地へ戻る';
+    button.disabled = false;
+  }
+
+  function showError(error) {
+    const messages = {
+      1: '位置情報が許可されていません。設定でこのページの位置情報を許可してください。',
+      2: '現在地を取得できませんでした。屋外や窓の近くで、もう一度お試しください。',
+      3: '取得に時間がかかっています。通信状態を確認して、もう一度お試しください。'
+    };
+    statusEl.textContent = messages[error.code] || '現在地を取得できませんでした。もう一度お試しください。';
+    button.textContent = 'もう一度試す';
+    button.disabled = false;
+  }
+
+  button.addEventListener('click', () => {
+    if (!navigator.geolocation) {
+      statusEl.textContent = 'この端末では位置情報機能を利用できません。';
+      return;
+    }
+    if (watchId !== null && lastPoint) {
+      map.flyTo(lastPoint, 18, { duration:.8 });
+      checkNearby(lastPoint);
+      return;
+    }
+    button.disabled = true;
+    button.textContent = '探索を準備中…';
+    statusEl.textContent = 'GPSで現在地を確認しています。移動中も自動で更新します。';
+    watchId = navigator.geolocation.watchPosition(showPosition, error => {
+      watchId = null;
+      showError(error);
+    }, { enableHighAccuracy:true, timeout:15000, maximumAge:5000 });
+  });
+
+  updateProgress();
+</script>
